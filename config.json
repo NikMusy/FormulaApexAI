@@ -1,0 +1,109 @@
+{
+  "capture": {
+    "mode": "window",
+    "window_title": "Roblox",
+    "monitor": 1,
+    "top": null,
+    "left": null,
+    "width": null,
+    "height": null
+  },
+  "keys": {
+    "throttle": "mouse:left",
+    "brake": "mouse:right",
+    "ers": "g",
+    "drs": "",
+    "reset": ""
+  },
+  "steering": {
+    "mode": "absolute"
+  },
+  "vision": {
+    "band_top": 0.38,
+    "band_bottom": 0.9,
+    "sat_max": 55,
+    "val_min": 45,
+    "val_max": 205,
+    "min_coverage": 0.025,
+    "row_weight": 1.6,
+    "adaptive": true,
+    "color_tol": 55
+  },
+  "params": {
+    "gain": 380,
+    "smoothing": 0.5,
+    "deadzone": 0.03,
+    "derivative": 0,
+    "max_step": 600,
+    "straight_error": 0.1,
+    "lift_error": 0.32,
+    "brake_error": 0.55,
+    "ers_straight_frames": 6,
+    "drs_straight_frames": 14,
+    "lookahead": 0.4,
+    "corner_brake": 1.0,
+    "line_weight": 0.5,
+    "curve_brake": 1.2
+  },
+  "bounds": {
+    "gain": [120, 700],
+    "smoothing": [0.0, 0.85],
+    "deadzone": [0.0, 0.12],
+    "derivative": [0, 200],
+    "max_step": [200, 900],
+    "straight_error": [0.03, 0.22],
+    "lift_error": [0.15, 0.5],
+    "brake_error": [0.35, 0.8],
+    "ers_straight_frames": [1, 40],
+    "drs_straight_frames": [3, 80],
+    "lookahead": [0.0, 0.85],
+    "corner_brake": [0.4, 2.0],
+    "line_weight": [0.0, 1.0],
+    "curve_brake": [0.3, 2.5]
+  },
+  "learning": {
+    "episode_seconds": 12,
+    "mutation_scale": 0.12,
+    "speed_weight": 2.0,
+    "center_weight": 0.5,
+    "offtrack_penalty": 1.5,
+    "crash_penalty": 4.0,
+    "max_speed_shift": 6
+  },
+  "behavior": {
+    "use_ers": true,
+    "use_drs": false,
+    "arm_seconds": 2.0,
+    "auto_line": true,
+    "always_learn": true,
+    "bg_train_seconds": 20,
+    "bg_min_new": 80,
+    "detect_crash": false,
+    "crash_speed": 0.06,
+    "crash_seconds": 3.5,
+    "recover_seconds": 0.7,
+    "max_brake_time": 0.7,
+    "brake_cooldown": 0.5,
+    "brake_floor": 0.5,
+    "lift_floor": 0.3,
+    "track_map": true,
+    "cut_speed": 0.15,
+    "danger_lookahead": 0.05,
+    "map_weight": 0.4,
+    "map_lookahead": 0.025,
+    "map_min_count": 3,
+    "human_line_weight": 0.5,
+    "mem_frames": 60000
+  },
+  "loop": {
+    "target_fps": 60
+  },
+  "hotkeys": {
+    "drive": "f8",
+    "learn": "f6",
+    "record": "f5",
+    "calibrate": "f7",
+    "lap_line": "f4",
+    "quit": "f9"
+  }
+}

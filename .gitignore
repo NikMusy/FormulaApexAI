@@ -1,0 +1,21 @@
+# Данные обучения (личные, генерируются на машине пользователя)
+brain.json
+demos.json
+track_map.json
+_t_*.json
+_*.py
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# IDE / OS
+.vscode/
+.idea/
+*.log
+Thumbs.db
+desktop.ini
