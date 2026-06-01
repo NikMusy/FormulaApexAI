@@ -54,8 +54,11 @@ class Autopilot:
         self.lap = LapTracker(cfg)
 
         b = cfg["behavior"]
+        s = cfg["steering"]
         self.keys = cfg["keys"]
-        self.steer_mode = cfg["steering"]["mode"]
+        self.steer_mode = s["mode"]
+        self.relative_gain = s.get("relative_gain", 70)
+        self.relative_max = s.get("relative_max", 90)
         self.use_ers = b["use_ers"]
         self.use_drs = b["use_drs"] and bool(self.keys["drs"])
         self.auto_line = b["auto_line"]
@@ -151,9 +154,9 @@ class Autopilot:
         self._mark_line = True
 
     def request_coach(self):
-        """Claude-разбор заезда (в фоновом потоке, не блокирует управление)."""
-        if not self.cfg.get("claude", {}).get("enabled", True):
-            print("\n[Claude] Выключено в config.json (claude.enabled=false).")
+        """Vision-разбор заезда (Gemini/Claude) в фоновом потоке, не блокирует управление."""
+        if not (self.cfg.get("coach") or self.cfg.get("claude") or {}).get("enabled", True):
+            print("\n[Разбор] Выключено в config.json (coach.enabled=false).")
             return
         if self.coach is None:
             try:
@@ -307,12 +310,12 @@ class Autopilot:
                              + (1 - self.p["smoothing"]) * error)
         e = 0.0 if abs(self.smooth_error) < self.p["deadzone"] else self.smooth_error
         if self.steer_mode == "relative":
-            dx = max(-self.p["max_step"], min(self.p["max_step"], e * self.p["gain"]))
+            # СЫРОЙ ввод мыши — Roblox читает именно его (курсор не двигаем).
+            dx = max(-self.relative_max, min(self.relative_max, e * self.relative_gain))
             move_mouse(int(round(dx)), 0)
-        else:  # absolute
-            target = max(-self.p["max_step"], min(self.p["max_step"], e * self.p["gain"]))
+        else:  # absolute (для игр, читающих позицию курсора)
             ms = self.p["max_step"]
-            # ИДЕАЛЬНАЯ линия рекордного круга в приоритете; иначе — твоя средняя траектория
+            target = max(-ms, min(ms, e * self.p["gain"]))
             if self.ideal_off is not None:
                 ip = max(-ms, min(ms, self.ideal_off))
                 target = (1 - self.ideal_weight) * target + self.ideal_weight * ip
@@ -504,7 +507,7 @@ class Autopilot:
         print(f" {hk['record'].upper()}=ЗАПИСЬ  {hk['learn'].upper()}=обучение  "
               f"{hk['drive'].upper()}=езда  {hk['lap_line'].upper()}=старт/финиш круга")
         print(f" {hk['calibrate'].upper()}=калибровка  "
-              f"{hk.get('coach', 'F2').upper()}=Claude-разбор заезда  "
+              f"{hk.get('coach', 'F2').upper()}=AI-разбор заезда (Gemini/Claude)  "
               f"{hk['quit'].upper()}=выход")
         print("=" * 62)
         if self.always_learn:

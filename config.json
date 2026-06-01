@@ -16,17 +16,19 @@
     "reset": ""
   },
   "steering": {
-    "mode": "absolute"
+    "mode": "relative",
+    "relative_gain": 70,
+    "relative_max": 90
   },
   "vision": {
-    "band_top": 0.38,
-    "band_bottom": 0.9,
+    "band_top": 0.52,
+    "band_bottom": 0.88,
     "sat_max": 55,
     "val_min": 45,
     "val_max": 205,
-    "min_coverage": 0.025,
-    "row_weight": 1.6,
-    "adaptive": true,
+    "min_coverage": 0.02,
+    "row_weight": 1.8,
+    "adaptive": false,
     "color_tol": 55,
     "proc_step": 2
   },
@@ -102,14 +104,17 @@
   "loop": {
     "target_fps": 60
   },
-  "claude": {
+  "coach": {
     "enabled": true,
-    "model": "claude-opus-4-8",
-    "api_key": "",
+    "provider": "gemini",
     "frames": 5,
     "frame_interval": 0.6,
     "image_width": 900,
-    "apply_tuning": true
+    "apply_tuning": true,
+    "gemini_model": "gemini-2.0-flash",
+    "gemini_api_key": "",
+    "anthropic_model": "claude-opus-4-8",
+    "anthropic_api_key": ""
   },
   "hotkeys": {
     "drive": "f8",

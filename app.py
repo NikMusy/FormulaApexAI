@@ -73,7 +73,7 @@ class App:
         self._btn(btns, "■ СТОП", lambda: self.ap.request("idle"), 1, 1)
         self._btn(btns, "🏁 КРУГ старт/финиш (F4)", self.ap.request_lap_line, 2, 0)
         self._btn(btns, "🔍 КАЛИБРОВКА (F7)", self.ap.calibrate, 2, 1)
-        self._btn(btns, "🧠 CLAUDE-РАЗБОР ЗАЕЗДА (F2)", self.ap.request_coach, 3, 0, ACCENT, colspan=2)
+        self._btn(btns, "🧠 AI-РАЗБОР ЗАЕЗДА (F2)", self.ap.request_coach, 3, 0, ACCENT, colspan=2)
         for c in (0, 1):
             btns.grid_columnconfigure(c, weight=1)
 
