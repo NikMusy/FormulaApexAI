@@ -25,6 +25,9 @@ class TrackVision:
         self.color_tol = float(v.get("color_tol", 55))
         self.proc_step = max(1, int(v.get("proc_step", 2)))  # прореживание пикселей -> скорость
         self.ref_color = None        # самокалибрующийся цвет асфальта (BGR)
+        self.mode = v.get("mode", "racing_line")   # racing_line (цветная линия) | asphalt
+        self.line_min = int(v.get("line_min", 95))   # мин. яркость канала для цветной линии
+        self.line_diff = int(v.get("line_diff", 28)) # насколько канал должен доминировать
 
         self.cap = cfg["capture"]
         self._sct = mss.mss()
@@ -135,19 +138,61 @@ class TrackVision:
                 return float(np.clip((centroid - w / 2.0) / (w / 2.0), -1.0, 1.0))
         return 0.0
 
-    def scene(self, frame: np.ndarray):
+    def _line_masks(self, band: np.ndarray):
+        """Маски цветной гоночной линии: (зелёная, жёлтая, красная)."""
+        B = band[:, :, 0]; G = band[:, :, 1]; R = band[:, :, 2]
+        m = self.line_min
+        d = self.line_diff
+        green = (G > m) & (G > R + d) & (G > B + d)
+        red = (R > m) & (R > G + d) & (R > B + d)
+        yellow = (R > m) & (G > m) & (R > B + d + 15) & (G > B + d + 15)
+        return green, yellow, red
+
+    def line_scene(self, frame: np.ndarray):
         """
-        Богатое восприятие всей дороги впереди (как видит человек):
-          near/mid/far — куда уходит трасса вблизи/средне/вдали;
-          line         — гоночная линия (самая дальняя точка, апекс);
-          curv         — кривизна (far-near): знак = сторона поворота, модуль = крутизна;
-          conf         — общая уверенность, что видим трассу.
+        Едем по ЦВЕТНОЙ гоночной линии (зелёная/жёлтая/красная) — оптимальная
+        траектория, нарисованная в игре. Цвет = подсказка газ/тормоз:
+          зелёный -> газ, жёлтый -> сброс, красный -> тормоз (тормозим заранее).
         """
         h, w = frame.shape[:2]
         y0 = int(h * self.band_top)
         y1 = int(h * self.band_bottom)
         s = self.proc_step
-        band = frame[y0:y1:s, ::s, :].astype(np.int16)   # прореживаем -> быстрее
+        band = frame[y0:y1:s, ::s, :].astype(np.int16)
+        green, yellow, red = self._line_masks(band)
+        line_mask = (green | yellow | red).astype(np.float32)
+        bh = line_mask.shape[0]
+        t = max(1, bh // 3)
+        far, far_c = self._centroid_err(line_mask[:t])
+        mid, mid_c = self._centroid_err(line_mask[t:2 * t])
+        near, near_c = self._centroid_err(line_mask[2 * t:])
+        conf = (far_c + mid_c + near_c) / 3.0
+        line = self._far_point(line_mask)
+        curv = far - near
+
+        # подсказка газ/тормоз по цвету ВПЕРЕДИ (верхние 2/3 полосы = даль/средне)
+        ahead = slice(0, 2 * t)
+        rf = float(red[ahead].sum())
+        yf = float(yellow[ahead].sum())
+        tot = float(line_mask[ahead].sum()) + 1.0
+        if rf / tot > 0.18:
+            hint = "brake"
+        elif yf / tot > 0.25:
+            hint = "coast"
+        else:
+            hint = "go"
+        return {"near": near, "mid": mid, "far": far, "line": line,
+                "curv": curv, "conf": conf, "hint": hint}
+
+    def scene(self, frame: np.ndarray):
+        """Восприятие дороги. Диспетчер: цветная линия или серый асфальт."""
+        if self.mode == "racing_line":
+            return self.line_scene(frame)
+        h, w = frame.shape[:2]
+        y0 = int(h * self.band_top)
+        y1 = int(h * self.band_bottom)
+        s = self.proc_step
+        band = frame[y0:y1:s, ::s, :].astype(np.int16)
         mask = self._segment(band)
         bh = mask.shape[0]
         t = max(1, bh // 3)
@@ -158,7 +203,7 @@ class TrackVision:
         line = self._far_point(mask)
         curv = far - near
         return {"near": near, "mid": mid, "far": far, "line": line,
-                "curv": curv, "conf": conf}
+                "curv": curv, "conf": conf, "hint": None}
 
     def _centroid_err(self, mask: np.ndarray):
         """Центр масс маски по горизонтали -> (error[-1..1], coverage[0..1])."""
@@ -256,12 +301,22 @@ class TrackVision:
         return best_shift / max_shift if max_shift else 0.0
 
     def debug_ascii(self, frame: np.ndarray, width: int = 60) -> str:
-        """Текстовая визуализация САМОКАЛИБРОВАННОЙ маски (что реально видит бот)."""
+        """Текстовая визуализация того, что видит бот (линия G/Y/R или асфальт #)."""
         h, w = frame.shape[:2]
         y0 = int(h * self.band_top)
         y1 = int(h * self.band_bottom)
         band = frame[y0:y1, :, :].astype(np.int16)
+        rstep = max(1, band.shape[0] // 12)
+        cstep = max(1, w // width)
+        if self.mode == "racing_line":
+            green, yellow, red = self._line_masks(band)
+            g = green[::rstep, ::cstep]; y = yellow[::rstep, ::cstep]; r = red[::rstep, ::cstep]
+            rows = []
+            for ri in range(g.shape[0]):
+                line = "".join("R" if r[ri, ci] else "Y" if y[ri, ci] else
+                               "G" if g[ri, ci] else "." for ci in range(g.shape[1]))
+                rows.append(line)
+            return "\n".join(rows)
         mask = self._segment(band) > 0.5
-        step = max(1, w // width)
-        small = mask[::max(1, mask.shape[0] // 12), ::step]
+        small = mask[::rstep, ::cstep]
         return "\n".join("".join("#" if c else "." for c in row) for row in small)

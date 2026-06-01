@@ -139,6 +139,7 @@ class Autopilot:
         self.map_curv = 0.0
         self.map_human_off = None
         self.ideal_off = None
+        self.line_hint = None
         self.last_conf = 0.0
         self.stuck_since = None
         self.recover_until = 0.0
@@ -254,6 +255,7 @@ class Autopilot:
         sc = self.vision.scene(frame)               # видим всю дорогу: near/mid/far/line/curv
         near, far, line, conf = sc["near"], sc["far"], sc["line"], sc["conf"]
         self.curv = sc["curv"]
+        self.line_hint = sc.get("hint")             # газ/тормоз по цвету линии (green/yellow/red)
         if not self.auto_line:
             line = 0.0
         strip = self.vision.gray_strip(frame)
@@ -341,6 +343,21 @@ class Autopilot:
 
         # запрет тормоза: после долгого тормоза остываем (чтобы ПКМ не ушёл в реверс)
         can_brake = now >= self.brake_block_until
+
+        # ЦВЕТ ЛИНИИ В ПРИОРИТЕТЕ: красный=тормоз, жёлтый=сброс, зелёный=газ
+        if not lost and self.line_hint is not None:
+            if self.line_hint == "brake" and can_brake:
+                if self.drive_state != "brake":
+                    self.drive_state = "brake"; self.brake_started = now
+                elif now - self.brake_started > self.max_brake_time:
+                    self.drive_state = "coast"; self.brake_block_until = now + self.brake_cooldown
+            elif self.line_hint == "coast":
+                self.drive_state = "coast"
+            else:
+                self.drive_state = "accel"
+            self.act.set(self.keys["throttle"], self.drive_state == "accel")
+            self.act.set(self.keys["brake"], self.drive_state == "brake")
+            return
 
         if lost:
             self.drive_state = "accel"

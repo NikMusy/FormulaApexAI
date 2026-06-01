@@ -21,12 +21,15 @@
     "relative_max": 90
   },
   "vision": {
-    "band_top": 0.52,
-    "band_bottom": 0.88,
+    "mode": "racing_line",
+    "line_min": 95,
+    "line_diff": 28,
+    "band_top": 0.5,
+    "band_bottom": 0.9,
     "sat_max": 55,
     "val_min": 45,
     "val_max": 205,
-    "min_coverage": 0.02,
+    "min_coverage": 0.006,
     "row_weight": 1.8,
     "adaptive": false,
     "color_tol": 55,
