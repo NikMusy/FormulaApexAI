@@ -7,7 +7,9 @@ on:
 
 jobs:
   check:
-    runs-on: windows-latest
+    # Linux-раннеры бесплатны для публичных репозиториев. Проверки py_compile/ruff
+    # не импортируют Windows-модули, поэтому платформа не важна.
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
