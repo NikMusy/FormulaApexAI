@@ -36,6 +36,8 @@ class LapTracker:
         self.snear = [0.0] * self.N  # сумма "куда идёт трасса" на отрезке
         self.hoff_cnt = [0] * self.N    # сколько раз ИГРОК ехал этот отрезок
         self.hoff_sum = [0.0] * self.N  # сумма смещения руля ИГРОКА (px) -> его траектория
+        self.best_off = [None] * self.N # ИДЕАЛЬНАЯ линия: смещение руля на самом быстром круге
+        self.best_off_lap = None        # время того самого быстрого круга
         if os.path.exists(TRACK_PATH):
             try:
                 with open(TRACK_PATH, "r", encoding="utf-8") as f:
@@ -47,6 +49,8 @@ class LapTracker:
                     self.cnt = d["cnt"]; self.scurv = d["scurv"]; self.snear = d["snear"]
                     if len(d.get("hoff_cnt", [])) == self.N:
                         self.hoff_cnt = d["hoff_cnt"]; self.hoff_sum = d["hoff_sum"]
+                    if len(d.get("best_off", [])) == self.N:
+                        self.best_off = d["best_off"]; self.best_off_lap = d.get("best_off_lap")
                 known = sum(1 for c in self.cnt if c > 0)
                 print(f"[трасса] Карта загружена: лучший круг={self._fmt(self.best_lap)}, "
                       f"изучено отрезков={known}/{self.N}, опасных мест={len(self.cuts)}")
@@ -58,7 +62,8 @@ class LapTracker:
             json.dump({"lap_length": self.lap_length, "best_lap": self.best_lap,
                        "cuts": self.cuts[-200:], "N": self.N,
                        "cnt": self.cnt, "scurv": self.scurv, "snear": self.snear,
-                       "hoff_cnt": self.hoff_cnt, "hoff_sum": self.hoff_sum},
+                       "hoff_cnt": self.hoff_cnt, "hoff_sum": self.hoff_sum,
+                       "best_off": self.best_off, "best_off_lap": self.best_off_lap},
                       f, ensure_ascii=False)
 
     def reset_run(self):
@@ -72,6 +77,8 @@ class LapTracker:
         self.last_lap = None
         self.cut_count = 0
         self._pending_cuts = []  # сырые дистанции срезов текущего круга
+        self._loff_sum = [0.0] * self.N   # траектория руля ТЕКУЩЕГО круга
+        self._loff_cnt = [0] * self.N
 
     # ---- разметка линии старт/финиш (F4) -------------------------------
     def mark_line(self):
@@ -96,18 +103,25 @@ class LapTracker:
         improved = self.best_lap is None or lap_time < self.best_lap
         if improved:
             self.best_lap = lap_time
+            # ЗАПОМИНАЕМ ИДЕАЛЬНУЮ ЛИНИЮ: траекторию руля этого (рекордного) круга
+            for i in range(self.N):
+                if self._loff_cnt[i] > 0:
+                    self.best_off[i] = self._loff_sum[i] / self._loff_cnt[i]
+            self.best_off_lap = lap_time
         # нормализуем срезы этого круга в доли 0..1 и запоминаем
         if self.lap_length and self.lap_length > 0:
             for d in self._pending_cuts:
                 self.cuts.append(round(min(0.999, d / self.lap_length), 3))
         self._pending_cuts = []
+        self._loff_sum = [0.0] * self.N
+        self._loff_cnt = [0] * self.N
         self.save()
         self.distance = 0.0
         self.lap_start = now
         return {"time": lap_time, "best": self.best_lap, "improved": improved}
 
     # ---- обновление каждый кадр ----------------------------------------
-    def update(self, speed, on_track, curv=0.0, near=0.0):
+    def update(self, speed, on_track, curv=0.0, near=0.0, offset=None):
         """Возвращает dict событий: {'cut': frac} и/или {'lap': {...}}."""
         if not self.enabled:
             return {}
@@ -124,6 +138,9 @@ class LapTracker:
             self.cnt[i] += 1
             self.scurv[i] += curv
             self.snear[i] += near
+            if offset is not None:        # траектория руля текущего круга (для идеальной линии)
+                self._loff_sum[i] += offset
+                self._loff_cnt[i] += 1
 
         # corner cut / вылет: съехали с асфальта на скорости
         if not on_track and speed > self.cut_speed:
@@ -182,6 +199,31 @@ class LapTracker:
         if c < min_count:
             return None
         return self.hoff_sum[i] / c
+
+    def ideal_offset_ahead(self, ahead=0.02):
+        """Смещение руля на ИДЕАЛЬНОЙ (самой быстрой) линии чуть впереди. None если нет."""
+        f = self.frac()
+        if f is None:
+            return None
+        i = int(((f + ahead) % 1.0) * self.N) % self.N
+        return self.best_off[i]
+
+    def curv_window(self, frac_window, min_count=3):
+        """Максимальная кривизна на участке ВПЕРЕДИ (смотрим дальше на скорости)."""
+        f = self.frac()
+        if f is None:
+            return 0.0
+        n = max(1, int(frac_window * self.N))
+        start = int(f * self.N)
+        mc = 0.0
+        for k in range(1, n + 1):
+            i = (start + k) % self.N
+            if self.cnt[i] >= min_count:
+                mc = max(mc, abs(self.scurv[i] / self.cnt[i]))
+        return mc
+
+    def ideal_known(self):
+        return sum(1 for v in self.best_off if v is not None) / self.N
 
     def known_fraction(self):
         return sum(1 for c in self.cnt if c > 0) / self.N

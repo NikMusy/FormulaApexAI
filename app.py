@@ -33,7 +33,7 @@ class App:
         self.root = tk.Tk()
         self.root.title("Formula Apex AI 🏎️")
         self.root.configure(bg=BG)
-        self.root.geometry("440x560")
+        self.root.geometry("440x660")
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
         self.big = tkfont.Font(family="Consolas", size=13, weight="bold")
@@ -51,8 +51,9 @@ class App:
         self.cells = {}
         specs = [("conf", "Зрение"), ("speed", "Скорость"), ("curv", "Кривизна"),
                  ("state", "Газ/тормоз"), ("best", "Лучший круг"), ("last", "Прошлый круг"),
-                 ("learned", "Трасса изучена"), ("frames", "Кадров в памяти"),
-                 ("cuts", "Опасных мест"), ("crashes", "Аварий")]
+                 ("learned", "Трасса изучена"), ("ideal", "Идеал. линия"),
+                 ("frames", "Кадров в памяти"), ("cuts", "Опасных мест"),
+                 ("crashes", "Аварий"), ("mode2", "Линия")]
         for idx, (key, title) in enumerate(specs):
             r, c = divmod(idx, 2)
             card = tk.Frame(grid, bg=CARD, padx=10, pady=7)
@@ -101,9 +102,12 @@ class App:
         self.cells["best"].config(text=ap.lap._fmt(ap.lap.best_lap))
         self.cells["last"].config(text=ap.lap._fmt(ap.lap.last_lap))
         self.cells["learned"].config(text=f"{ap.lap.known_fraction() * 100:.0f}%")
+        self.cells["ideal"].config(text=f"{ap.lap.ideal_known() * 100:.0f}%")
         self.cells["frames"].config(text=f"{len(ap.bg_buffer)}")
         self.cells["cuts"].config(text=f"{len(ap.lap.cuts)}")
         self.cells["crashes"].config(text=f"{ap.crashes}")
+        self.cells["mode2"].config(text="ИДЕАЛ" if ap.ideal_off is not None
+                                   else ("твоя" if ap.map_human_off is not None else "зрение"))
         self.root.after(250, self.update_loop)
 
     def on_close(self):

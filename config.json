@@ -27,7 +27,8 @@
     "min_coverage": 0.025,
     "row_weight": 1.6,
     "adaptive": true,
-    "color_tol": 55
+    "color_tol": 55,
+    "proc_step": 2
   },
   "params": {
     "gain": 380,
@@ -93,6 +94,9 @@
     "map_lookahead": 0.025,
     "map_min_count": 3,
     "human_line_weight": 0.5,
+    "ideal_line_weight": 0.6,
+    "curv_window_base": 0.03,
+    "curv_window_speed": 0.06,
     "mem_frames": 60000
   },
   "loop": {

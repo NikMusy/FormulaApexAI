@@ -74,6 +74,9 @@ class Autopilot:
         self.map_lookahead = b.get("map_lookahead", 0.025)
         self.map_min_count = b.get("map_min_count", 3)
         self.human_weight = b.get("human_line_weight", 0.5)
+        self.ideal_weight = b.get("ideal_line_weight", 0.6)
+        self.curv_window_base = b.get("curv_window_base", 0.03)
+        self.curv_window_speed = b.get("curv_window_speed", 0.06)
         self.mem_frames = b.get("mem_frames", 60000)
         self.reset_key = self.keys.get("reset", "")
         self.target_dt = 1.0 / cfg["loop"]["target_fps"]
@@ -129,6 +132,7 @@ class Autopilot:
         self.curv = 0.0
         self.map_curv = 0.0
         self.map_human_off = None
+        self.ideal_off = None
         self.last_conf = 0.0
         self.stuck_since = None
         self.recover_until = 0.0
@@ -241,11 +245,13 @@ class Autopilot:
         lmb = spec_pressed(self.keys["throttle"])
         rmb = spec_pressed(self.keys["brake"])
         driving = lmb or rmb or speed > self.crash_speed
-        # учимся структуре круга, форме трассы и местам срезов, пока игрок едет сам
+        on_track = conf >= self.vision.min_coverage
+        x, _ = get_cursor()
+        h_off = float(x - self.cx) if (driving and on_track) else None
+        # учимся структуре круга, форме трассы, местам срезов И твоей траектории
         self._report_lap_events(self.lap.update(
-            speed, on_track=conf >= self.vision.min_coverage, curv=self.curv, near=near))
-        if driving and conf >= self.vision.min_coverage:
-            x, _ = get_cursor()
+            speed, on_track=on_track, curv=self.curv, near=near, offset=h_off))
+        if driving and on_track:
             self.lap.note_human(x - self.cx)        # запоминаем ТВОЮ траекторию по позиции
             s = {"error": float(near), "conf": float(conf), "speed": float(speed),
                  "offset": float(x - self.cx), "throttle": lmb, "brake": rmb,
@@ -279,9 +285,13 @@ class Autopilot:
             move_mouse(int(round(dx)), 0)
         else:  # absolute
             target = max(-self.p["max_step"], min(self.p["max_step"], e * self.p["gain"]))
-            # едем ТВОЕЙ траекторией: подмешиваем запомненное смещение руля игрока
-            if self.map_human_off is not None:
-                hp = max(-self.p["max_step"], min(self.p["max_step"], self.map_human_off))
+            ms = self.p["max_step"]
+            # ИДЕАЛЬНАЯ линия рекордного круга в приоритете; иначе — твоя средняя траектория
+            if self.ideal_off is not None:
+                ip = max(-ms, min(ms, self.ideal_off))
+                target = (1 - self.ideal_weight) * target + self.ideal_weight * ip
+            elif self.map_human_off is not None:
+                hp = max(-ms, min(ms, self.map_human_off))
                 target = (1 - self.human_weight) * target + self.human_weight * hp
             self.smooth_off = 0.5 * self.smooth_off + 0.5 * target
             set_cursor(self.cx + int(round(self.smooth_off)), self.cy)
@@ -375,8 +385,11 @@ class Autopilot:
         # ПАМЯТЬ всего круга: что за поворот впереди на этом участке
         mp = self.lap.map_ahead(self.map_lookahead, self.map_min_count)
         map_err = mp["near"] if mp else None
-        self.map_curv = mp["curv"] if mp else 0.0
-        # ТВОЯ траектория на этом участке (как ты рулил здесь)
+        # смотрим дальше вперёд на скорости -> тормозим заранее перед поворотом
+        window = self.curv_window_base + self.curv_window_speed * self.avg_speed * 10
+        self.map_curv = self.lap.curv_window(window, self.map_min_count)
+        # ИДЕАЛЬНАЯ линия рекорда (приоритет), иначе средняя траектория игрока
+        self.ideal_off = self.lap.ideal_offset_ahead(self.map_lookahead)
         self.map_human_off = self.lap.human_offset_ahead(self.map_lookahead, self.map_min_count)
 
         # при потере трассы рулим по ПАМЯТИ (где она была), а не слепо в центр
@@ -386,8 +399,9 @@ class Autopilot:
                     map_err)
         self._throttle(abs_near, abs_far, lost, now)
 
-        # карта трассы: дистанция, ловля corner cut, время круга + ЗАПОМИНАНИЕ формы
-        ev = self.lap.update(speed, on_track=not lost, curv=self.curv, near=near)
+        # карта трассы + запись траектории руля бота этого круга (для идеальной линии)
+        ev = self.lap.update(speed, on_track=not lost, curv=self.curv, near=near,
+                             offset=self.smooth_off)
         self._report_lap_events(ev)
 
         # САМ притормаживает заранее в местах, где раньше срезал/вылетал
@@ -560,6 +574,7 @@ class Autopilot:
               f"сброс@{bp['lift_error']:.2f} апекс={bp['line_weight']:.2f}")
         print(f"  Круг: лучший={self.lap._fmt(self.lap.best_lap)}  "
               f"изучено трассы={self.lap.known_fraction() * 100:.0f}%  "
+              f"идеал.линия={self.lap.ideal_known() * 100:.0f}%  "
               f"опасных мест(cut)={len(self.lap.cuts)}  "
               f"линия={'отмечена' if self.lap.anchored else 'нет (жми F4 на старте!)'}")
         print("---------------------------------------------------------")

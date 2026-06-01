@@ -23,6 +23,7 @@ class TrackVision:
         self.row_weight = float(v["row_weight"])
         self.adaptive = bool(v.get("adaptive", True))
         self.color_tol = float(v.get("color_tol", 55))
+        self.proc_step = max(1, int(v.get("proc_step", 2)))  # прореживание пикселей -> скорость
         self.ref_color = None        # самокалибрующийся цвет асфальта (BGR)
 
         self.cap = cfg["capture"]
@@ -145,7 +146,8 @@ class TrackVision:
         h, w = frame.shape[:2]
         y0 = int(h * self.band_top)
         y1 = int(h * self.band_bottom)
-        band = frame[y0:y1, :, :].astype(np.int16)
+        s = self.proc_step
+        band = frame[y0:y1:s, ::s, :].astype(np.int16)   # прореживаем -> быстрее
         mask = self._segment(band)
         bh = mask.shape[0]
         t = max(1, bh // 3)
@@ -230,7 +232,8 @@ class TrackVision:
         y1 = int(h * self.band_bottom)
         x0 = int(w * 0.35)
         x1 = int(w * 0.65)
-        return frame[y0:y1, x0:x1, :].mean(axis=2).astype(np.float32)
+        s = self.proc_step
+        return frame[y0:y1:s, x0:x1:s, :].mean(axis=2).astype(np.float32)
 
     @staticmethod
     def speed_proxy(prev: np.ndarray, now: np.ndarray, max_shift: int = 6) -> float:
