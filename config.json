@@ -102,12 +102,22 @@
   "loop": {
     "target_fps": 60
   },
+  "claude": {
+    "enabled": true,
+    "model": "claude-opus-4-8",
+    "api_key": "",
+    "frames": 5,
+    "frame_interval": 0.6,
+    "image_width": 900,
+    "apply_tuning": true
+  },
   "hotkeys": {
     "drive": "f8",
     "learn": "f6",
     "record": "f5",
     "calibrate": "f7",
     "lap_line": "f4",
+    "coach": "f2",
     "quit": "f9"
   }
 }

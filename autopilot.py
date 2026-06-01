@@ -20,6 +20,7 @@ Formula Apex AI — самообучающийся автопилот для Rob
 
 import json
 import os
+import threading
 import time
 
 import keyboard
@@ -103,6 +104,8 @@ class Autopilot:
         self._mark_line = False
         self.lost_frames = 0
         self.stop_flag = False
+        self.coach = None
+        self.coach_status = ""
 
         # фоновое (бесконечное) обучение по тому, как едет игрок
         self.bg_buffer = list(self.brain.load_all_demos())[-cfg["behavior"].get("mem_frames", 60000):]
@@ -146,6 +149,29 @@ class Autopilot:
 
     def request_lap_line(self):
         self._mark_line = True
+
+    def request_coach(self):
+        """Claude-разбор заезда (в фоновом потоке, не блокирует управление)."""
+        if not self.cfg.get("claude", {}).get("enabled", True):
+            print("\n[Claude] Выключено в config.json (claude.enabled=false).")
+            return
+        if self.coach is None:
+            try:
+                from coach import RaceCoach
+                self.coach = RaceCoach(self.cfg, self)
+            except Exception as e:
+                print(f"\n[Claude] Не удалось инициализировать: {e}")
+                return
+        if self.coach.busy:
+            print("\n[Claude] Уже анализирую...")
+            return
+
+        def _log(msg):
+            self.coach_status = str(msg).splitlines()[0][:50]
+            print(msg)
+
+        threading.Thread(target=self.coach.analyze, kwargs={"log": _log},
+                         daemon=True).start()
 
     def _handle_lap_line(self):
         if not self._mark_line:
@@ -464,6 +490,8 @@ class Autopilot:
         keyboard.add_hotkey(hk["record"], lambda: self.request("record"))
         keyboard.add_hotkey(hk["calibrate"], self.calibrate)
         keyboard.add_hotkey(hk["lap_line"], self.request_lap_line)
+        if "coach" in hk:
+            keyboard.add_hotkey(hk["coach"], self.request_coach)
 
         print("=" * 62)
         print(" Formula Apex AI — самообучающийся автопилот")
@@ -474,8 +502,10 @@ class Autopilot:
         print(f" Газ=ЛКМ  Тормоз=ПКМ  Батарея(ERS)={self.keys['ers']}"
               + (f"  DRS={self.keys['drs']}" if self.use_drs else "  DRS=выкл"))
         print(f" {hk['record'].upper()}=ЗАПИСЬ  {hk['learn'].upper()}=обучение  "
-              f"{hk['drive'].upper()}=езда  {hk['lap_line'].upper()}=старт/финиш круга  "
-              f"{hk['calibrate'].upper()}=калибровка  {hk['quit'].upper()}=выход")
+              f"{hk['drive'].upper()}=езда  {hk['lap_line'].upper()}=старт/финиш круга")
+        print(f" {hk['calibrate'].upper()}=калибровка  "
+              f"{hk.get('coach', 'F2').upper()}=Claude-разбор заезда  "
+              f"{hk['quit'].upper()}=выход")
         print("=" * 62)
         if self.always_learn:
             print(" ФОН: просто играй сам — я постоянно смотрю и учусь твоей езде.")

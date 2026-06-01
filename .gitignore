@@ -5,6 +5,10 @@ track_map.json
 _t_*.json
 _*.py
 
+# Claude-разбор: отчёты и сетапы (личные)
+reports/
+setups/
+
 # Python
 __pycache__/
 *.py[cod]

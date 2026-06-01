@@ -73,6 +73,7 @@ class App:
         self._btn(btns, "■ СТОП", lambda: self.ap.request("idle"), 1, 1)
         self._btn(btns, "🏁 КРУГ старт/финиш (F4)", self.ap.request_lap_line, 2, 0)
         self._btn(btns, "🔍 КАЛИБРОВКА (F7)", self.ap.calibrate, 2, 1)
+        self._btn(btns, "🧠 CLAUDE-РАЗБОР ЗАЕЗДА (F2)", self.ap.request_coach, 3, 0, ACCENT, colspan=2)
         for c in (0, 1):
             btns.grid_columnconfigure(c, weight=1)
 
@@ -83,11 +84,11 @@ class App:
 
         self.update_loop()
 
-    def _btn(self, parent, text, cmd, r, c, fg=FG):
+    def _btn(self, parent, text, cmd, r, c, fg=FG, colspan=1):
         b = tk.Button(parent, text=text, command=cmd, bg=CARD, fg=fg,
                       activebackground=ACCENT, activeforeground=BG, font=self.mid,
                       relief="flat", padx=6, pady=8, cursor="hand2")
-        b.grid(row=r, column=c, sticky="nsew", padx=4, pady=4)
+        b.grid(row=r, column=c, columnspan=colspan, sticky="nsew", padx=4, pady=4)
 
     def update_loop(self):
         ap = self.ap
@@ -108,6 +109,8 @@ class App:
         self.cells["crashes"].config(text=f"{ap.crashes}")
         self.cells["mode2"].config(text="ИДЕАЛ" if ap.ideal_off is not None
                                    else ("твоя" if ap.map_human_off is not None else "зрение"))
+        if ap.coach_status:
+            self.hint.config(text="Claude: " + ap.coach_status)
         self.root.after(250, self.update_loop)
 
     def on_close(self):
