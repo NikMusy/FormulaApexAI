@@ -11,7 +11,9 @@ import json
 import os
 import time
 
-TRACK_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "track_map.json")
+from paths import data_dir
+
+TRACK_PATH = os.path.join(data_dir(), "track_map.json")
 
 
 class LapTracker:

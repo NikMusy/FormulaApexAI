@@ -18,8 +18,10 @@ import time
 
 import numpy as np
 
-BRAIN_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "brain.json")
-DEMO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "demos.json")
+from paths import data_dir
+
+BRAIN_PATH = os.path.join(data_dir(), "brain.json")
+DEMO_PATH = os.path.join(data_dir(), "demos.json")
 
 
 class Brain:

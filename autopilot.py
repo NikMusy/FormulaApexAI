@@ -30,13 +30,17 @@ from learning import Brain
 from vision import TrackVision
 from track import LapTracker
 from window import set_dpi_aware
+from paths import data_dir, resource_path
 
-CFG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 VK_G = 0x47
 
 
 def load_cfg():
-    with open(CFG_PATH, "r", encoding="utf-8") as f:
+    # config.json: сначала рядом с приложением (можно редактировать), иначе упакованный
+    path = os.path.join(data_dir(), "config.json")
+    if not os.path.exists(path):
+        path = resource_path("config.json")
+    with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
